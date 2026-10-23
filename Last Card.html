@@ -1,0 +1,611 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Last Card</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Lilita+One&display=swap" rel="stylesheet">
+<style>
+/* Layout: a dark felt table. Three opponents across the top, draw and discard piles in the middle, your hand fanned along the bottom. */
+:root {
+  --mat: #0e2a2d;
+  --mat-2: #17393e;
+  --ink: #f1f5f3;
+  --ink-dim: #a6bcbb;
+  --line: rgba(255, 255, 255, .14);
+  --accent: #ffd23f;
+  --red: #e63946;
+  --yellow: #f7b500;
+  --green: #2fa36b;
+  --blue: #2f6fe0;
+  --paper: #f4f4ef;
+  --display: "Lilita One", "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+  --ui: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --cw: 62px;
+  color-scheme: dark;
+}
+html { height: 100%; }
+body {
+  min-height: 100%;
+  background-color: var(--mat);
+  background-image: radial-gradient(120% 70% at 50% 38%, var(--mat-2), transparent 72%);
+  color: var(--ink);
+  font: 15px/1.45 var(--ui);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 10px 14px;
+}
+.app { max-width: 960px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; gap: 12px; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* header */
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { margin: 0; font: 30px/1 var(--display); letter-spacing: .01em; display: flex; align-items: center; gap: 8px; }
+h1 span { background: var(--yellow); color: #1b1600; padding: 2px 9px 4px; border-radius: 7px; transform: rotate(-4deg); display: inline-block; }
+.bar-r { display: flex; align-items: center; gap: 12px; }
+.pts { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.btn { border: 2px solid var(--line); background: transparent; border-radius: 999px; padding: .5em 1.1em; font-weight: 700; cursor: pointer; }
+.btn:hover:not(:disabled) { border-color: var(--ink-dim); }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #1b1600; }
+
+/* opponents */
+.opps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.opp { min-width: 0; background: rgba(255, 255, 255, .05); border: 2px solid transparent; border-radius: 14px; padding: 9px 10px 10px; display: grid; gap: 7px; transition: border-color .2s, background .2s; }
+.opp.active { border-color: var(--accent); background: rgba(255, 210, 63, .09); }
+.who { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.av { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 14px/1 var(--display); color: #101417; background: var(--c); }
+.who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { margin-left: auto; font-size: 11px; font-weight: 700; background: var(--red); color: #fff; padding: 1px 7px; border-radius: 999px; white-space: nowrap; animation: pulse 1s ease-in-out infinite; }
+.fan { display: flex; height: 33px; }
+.fan .card { --cw: 22px; box-shadow: inset 0 0 0 1px var(--paper), 0 1px 3px rgba(0, 0, 0, .4); margin-left: -13px; }
+.fan .card:first-child { margin-left: 0; }
+.fan .face { display: none; }
+.meta { font-size: 12.5px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.meta b { color: var(--ink); font-size: 15px; }
+
+/* table */
+.felt { flex: 1; display: flex; align-items: center; justify-content: center; gap: clamp(20px, 7vw, 64px); padding: 8px 0; min-height: 190px; }
+.felt .card { --cw: 78px; }
+.pile { position: relative; background: none; border: 0; padding: 0; border-radius: 14px; cursor: pointer; }
+.pile .stack { display: block; border-radius: 12px; box-shadow: 3px 3px 0 -1px #0b1c1e, 6px 6px 0 -1px #1f4a50; }
+.pile .count { position: absolute; left: 50%; bottom: -12px; transform: translateX(-50%); background: var(--mat); border: 2px solid var(--line); border-radius: 999px; padding: 0 9px; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pile.nudge .stack { animation: pulse 1s ease-in-out infinite; outline: 3px solid var(--accent); outline-offset: 3px; }
+.pile:disabled { cursor: default; }
+.discard-wrap { display: grid; justify-items: center; gap: 10px; }
+.ring { padding: 7px; border-radius: 18px; border: 3px solid var(--cur, var(--paper)); box-shadow: 0 0 28px -4px var(--cur, transparent); transition: border-color .25s, box-shadow .25s; }
+.ring .card.pop { animation: pop .28s ease-out; }
+.cur { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-dim); }
+.cur .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--cur); }
+.cur b { color: var(--ink); }
+
+/* messages and controls */
+.msg { margin: 0; min-height: 2.9em; text-align: center; font-size: 15.5px; font-weight: 500; max-width: 60ch; margin-inline: auto; text-wrap: balance; }
+.controls { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; min-height: 44px; }
+.call { background: var(--yellow); border-color: var(--yellow); color: #1b1600; font-family: var(--display); font-weight: 400; font-size: 18px; letter-spacing: .02em; padding: .35em 1.2em; }
+.call[aria-pressed="true"] { background: #fff; border-color: #fff; color: var(--red); }
+.hint { margin: 0; text-align: center; font-size: 13.5px; color: var(--ink-dim); min-height: 1.5em; }
+
+/* hand */
+.hand { display: flex; align-items: flex-end; gap: 8px; overflow-x: auto; padding: 24px 6px 12px; scrollbar-width: thin; }
+.hand .card { --cw: 62px; transition: transform .14s ease, filter .14s; cursor: pointer; }
+.hand .card:first-child { margin-left: auto; }
+.hand .card:last-child { margin-right: auto; }
+.hand .card.ok { transform: translateY(-14px); outline: 2px solid var(--accent); outline-offset: 1px; }
+.hand .card.dim { filter: brightness(.5) saturate(.7); }
+.hand .card.fresh { animation: pop .3s ease-out; }
+@media (hover: hover) {
+  .hand .card.ok:hover { transform: translateY(-24px); z-index: 2; }
+}
+.hand.shake { animation: shake .3s; }
+
+/* cards */
+.card { position: relative; flex: none; display: block; width: var(--cw); height: calc(var(--cw) * 1.5); padding: 0; border: 0; border-radius: calc(var(--cw) * .13); background: var(--cc); overflow: hidden; font-family: var(--display); box-shadow: inset 0 0 0 calc(var(--cw) * .045) var(--paper), 0 2px 7px rgba(0, 0, 0, .4); user-select: none; -webkit-user-select: none; }
+.card::before { content: ""; position: absolute; left: 13%; right: 13%; top: 16%; bottom: 16%; border-radius: 50%; background: var(--paper); transform: rotate(-26deg) scale(1.06); }
+.card .face { position: absolute; inset: 0; display: grid; place-items: center; font-size: calc(var(--cw) * .52); line-height: 1; color: var(--cf); }
+.card .corner { position: absolute; font-size: calc(var(--cw) * .2); line-height: 1; color: var(--cx); }
+.card .tl { left: 10%; top: 6%; }
+.card .br { right: 10%; bottom: 6%; transform: rotate(180deg); }
+.card svg { width: .9em; height: .9em; display: block; }
+.card .face svg { width: .8em; height: .8em; }
+.c-red { --cc: var(--red); --cf: #cf2234; --cx: #fff; }
+.c-yellow { --cc: var(--yellow); --cf: #b87d00; --cx: #2a2100; }
+.c-green { --cc: var(--green); --cf: #1b8250; --cx: #fff; }
+.c-blue { --cc: var(--blue); --cf: #2358c4; --cx: #fff; }
+.c-wild { --cc: #171a20; --cf: #fff; --cx: #fff; }
+.c-wild::before { background: conic-gradient(var(--red) 0 25%, var(--yellow) 0 50%, var(--green) 0 75%, var(--blue) 0); }
+.c-wild .face { text-shadow: 0 0 4px #000, 0 1px 0 #000, 0 -1px 0 #000; }
+.card.back { --cc: #181c24; --cf: #fff; }
+.card.back::before { background: var(--red); }
+.card.back .face { font-size: calc(var(--cw) * .17); letter-spacing: .06em; text-align: center; transform: rotate(-26deg); }
+
+/* overlays */
+.overlay { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(5, 15, 17, .75); padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.panel { width: 100%; max-width: 420px; background: var(--mat-2); border: 2px solid var(--line); border-radius: 20px; padding: 22px; display: grid; gap: 16px; }
+.panel h2 { margin: 0; font: 28px/1.1 var(--display); text-wrap: balance; }
+.panel p { margin: 0; color: var(--ink-dim); }
+.picks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pick { min-height: 74px; border: 3px solid var(--paper); border-radius: 14px; cursor: pointer; font: 22px/1 var(--display); color: #fff; background: var(--cc); }
+.pick.yellow { color: #2a2100; }
+.pick.red { --cc: var(--red); } .pick.yellow { --cc: var(--yellow); } .pick.green { --cc: var(--green); } .pick.blue { --cc: var(--blue); }
+.tally { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tally td { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.tally td:last-child { text-align: right; font-weight: 700; }
+.tally tr.win td { color: var(--accent); font-weight: 700; }
+
+@keyframes pulse { 50% { opacity: .6; } }
+@keyframes pop { from { transform: scale(.7) rotate(-8deg); } to { transform: none; } }
+@keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+@media (min-width: 700px) {
+  .felt .card { --cw: 100px; }
+  .hand .card { --cw: 82px; }
+  .fan { height: 45px; }
+  .fan .card { --cw: 30px; margin-left: -17px; }
+  .msg { font-size: 17px; }
+}
+</style>
+
+<div class="app">
+  <header class="bar">
+    <h1>Last <span>Card</span></h1>
+    <div class="bar-r">
+      <span class="pts" id="pts"></span>
+      <button class="btn" id="newGame" type="button">New game</button>
+    </div>
+  </header>
+
+  <section class="opps" id="opps" aria-label="Opponents"></section>
+
+  <section class="felt" aria-label="Table">
+    <button class="pile" id="drawPile" type="button" aria-label="Draw pile"></button>
+    <div class="discard-wrap">
+      <div class="ring" id="ring"><div id="discard"></div></div>
+      <div class="cur" id="cur"></div>
+    </div>
+  </section>
+
+  <p class="msg" id="msg" role="status" aria-live="polite"></p>
+  <div class="controls">
+    <button class="btn call" id="callBtn" type="button" aria-pressed="false">Last card!</button>
+    <button class="btn" id="passBtn" type="button" hidden>Pass</button>
+  </div>
+  <p class="hint" id="hint"></p>
+  <section class="hand" id="hand" aria-label="Your hand"></section>
+</div>
+
+<div class="overlay" id="colorOv" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="colorTitle">
+    <h2 id="colorTitle">Pick the next color</h2>
+    <div class="picks">
+      <button class="pick red" type="button" data-color="red">Red</button>
+      <button class="pick yellow" type="button" data-color="yellow">Yellow</button>
+      <button class="pick green" type="button" data-color="green">Green</button>
+      <button class="pick blue" type="button" data-color="blue">Blue</button>
+    </div>
+    <button class="btn" id="colorCancel" type="button">Choose a different card</button>
+  </div>
+</div>
+
+<div class="overlay" id="endOv" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="endTitle">
+    <h2 id="endTitle"></h2>
+    <p id="endText"></p>
+    <table class="tally" id="tally"></table>
+    <button class="btn primary" id="nextBtn" type="button">Next round</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+const COLORS = ['red', 'yellow', 'green', 'blue'];
+const COLOR_NAME = { red: 'Red', yellow: 'Yellow', green: 'Green', blue: 'Blue' };
+const NAMES = ['You', 'Mira', 'Dev', 'Juno'];
+const AV = ['#ffd23f', '#ff8fa3', '#7fd6c2', '#9db8ff'];
+let G = null, gen = 0, round = 0, uid = 0, lastTopId = 0;
+let scores = [0, 0, 0, 0];
+const $ = id => document.getElementById(id);
+
+/* ---------- deck ---------- */
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function makeDeck() {
+  const d = [];
+  const add = (color, type, n) => d.push({ id: ++uid, color, type, n });
+  for (const c of COLORS) {
+    add(c, 'num', 0);
+    for (let n = 1; n <= 9; n++) { add(c, 'num', n); add(c, 'num', n); }
+    for (const t of ['skip', 'rev', 'draw2']) { add(c, t); add(c, t); }
+  }
+  for (let i = 0; i < 4; i++) { add('wild', 'wild'); add('wild', 'wild4'); }
+  return d;
+}
+const sortKey = c => (c.color === 'wild' ? 4 : COLORS.indexOf(c.color)) * 1000 +
+  ({ num: 0, skip: 100, rev: 110, draw2: 120, wild: 130, wild4: 140 })[c.type] + (c.n || 0);
+const sortHand = h => h.sort((a, b) => sortKey(a) - sortKey(b));
+function describe(c) {
+  if (c.type === 'wild') return 'Wild';
+  if (c.type === 'wild4') return 'Wild Draw Four';
+  const t = c.type === 'num' ? String(c.n) : { skip: 'Skip', rev: 'Reverse', draw2: 'Draw Two' }[c.type];
+  return COLOR_NAME[c.color] + ' ' + t;
+}
+const cardValue = c => c.type === 'num' ? c.n : (c.color === 'wild' ? 50 : 20);
+
+/* ---------- card drawing ---------- */
+const ICON = {
+  skip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M6 18L18 6"/></svg>',
+  rev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h13l-3.5-3.5M20 15.5H7l3.5 3.5"/></svg>'
+};
+function faceHTML(c) {
+  if (c.type === 'num') return String(c.n);
+  if (c.type === 'draw2') return '+2';
+  if (c.type === 'wild4') return '+4';
+  if (c.type === 'wild') return '';
+  return ICON[c.type];
+}
+function cardEl(c, tag) {
+  const el = document.createElement(tag || 'button');
+  if (el.tagName === 'BUTTON') el.type = 'button';
+  if (!c) {
+    el.className = 'card back';
+    el.innerHTML = '<span class="face">LAST<br>CARD</span>';
+    return el;
+  }
+  el.className = 'card c-' + c.color;
+  const f = faceHTML(c);
+  el.innerHTML = '<span class="face">' + f + '</span>' +
+    (f ? '<span class="corner tl">' + f + '</span><span class="corner br">' + f + '</span>' : '');
+  el.setAttribute('aria-label', describe(c));
+  return el;
+}
+
+/* ---------- rules ---------- */
+const topCard = () => G.discard[G.discard.length - 1];
+const step = (i, k) => ((i + G.dir * (k || 1)) % 4 + 4) % 4;
+const nm = i => i === 0 ? 'You' : G.players[i].name;
+function isPlayable(c, hand) {
+  if (c.type === 'wild') return true;
+  if (c.type === 'wild4') return !hand.some(x => x !== c && x.color === G.color);
+  const t = topCard();
+  return c.color === G.color ||
+    (c.type === 'num' && t.type === 'num' && c.n === t.n) ||
+    (c.type !== 'num' && c.type === t.type);
+}
+const hasPlayable = i => G.players[i].hand.some(c => isPlayable(c, G.players[i].hand));
+function drawOne(pi) {
+  if (!G.draw.length && G.discard.length > 1) {
+    const t = G.discard.pop();
+    G.draw = shuffle(G.discard);
+    G.discard = [t];
+  }
+  if (!G.draw.length) return null;
+  const c = G.draw.pop();
+  const p = G.players[pi];
+  p.hand.push(c);
+  if (p.human) sortHand(p.hand);
+  return c;
+}
+function drawCards(pi, n) {
+  let got = 0;
+  for (let i = 0; i < n; i++) if (drawOne(pi)) got++;
+  return got;
+}
+function schedule(fn, ms) {
+  const g = gen;
+  setTimeout(() => { if (g === gen) fn(); }, ms);
+}
+function say(t) { G.msg = t; $('msg').textContent = t; }
+
+/* ---------- round flow ---------- */
+function newRound() {
+  gen++; round++;
+  G = {
+    players: NAMES.map((name, i) => ({ name, human: i === 0, hand: [] })),
+    draw: shuffle(makeDeck()), discard: [], cur: 0, dir: 1, color: null,
+    phase: 'wait', drawn: null, called: false, pending: null, over: false, msg: ''
+  };
+  for (let r = 0; r < 7; r++) for (const p of G.players) p.hand.push(G.draw.pop());
+  G.players.forEach(p => sortHand(p.hand));
+  let first;
+  do {
+    first = G.draw.pop();
+    if (first.type !== 'num') G.draw.unshift(first);
+  } while (first.type !== 'num');
+  G.discard.push(first);
+  G.color = first.color;
+  $('colorOv').hidden = true;
+  $('endOv').hidden = true;
+  say('New round. Seven cards each, and you go first.');
+  render();
+  schedule(startTurn, 500);
+}
+function startTurn() {
+  if (!G || G.over) return;
+  const p = G.players[G.cur];
+  G.drawn = null;
+  if (p.human) { G.phase = 'human'; G.called = false; }
+  else G.phase = 'cpu';
+  render();
+  if (!p.human) schedule(cpuTurn, 800 + Math.random() * 500);
+}
+function applyPlay(pi, card, chosen) {
+  const p = G.players[pi];
+  p.hand.splice(p.hand.indexOf(card), 1);
+  G.discard.push(card);
+  G.color = card.color === 'wild' ? chosen : card.color;
+  G.drawn = null;
+  let msg = (p.human ? 'You played ' : p.name + ' played ') + describe(card);
+  if (card.color === 'wild') msg += ', color is now ' + COLOR_NAME[chosen];
+  msg += '.';
+  if (p.hand.length === 0) { finishRound(pi, msg); return; }
+  if (p.hand.length === 1) {
+    if (p.human && !G.called) {
+      const n = drawCards(0, 2);
+      msg += ' You forgot to call last card, so you draw ' + n + '.';
+    } else {
+      msg += ' ' + (p.human ? 'You call' : p.name + ' calls') + ' last card!';
+    }
+  }
+  if (card.type === 'rev') { G.dir *= -1; msg += ' Direction reversed.'; }
+  let next = step(pi);
+  const v = next === 0;
+  if (card.type === 'skip') {
+    msg += ' ' + nm(next) + (v ? ' are' : ' is') + ' skipped.';
+    next = step(next);
+  } else if (card.type === 'draw2' || card.type === 'wild4') {
+    const n = drawCards(next, card.type === 'draw2' ? 2 : 4);
+    msg += ' ' + nm(next) + (v ? ' draw ' : ' draws ') + n + (v ? ' and lose' : ' and loses') + ' the turn.';
+    next = step(next);
+  }
+  G.cur = next;
+  G.phase = 'wait';
+  say(msg);
+  render();
+  schedule(startTurn, 900);
+}
+function finishRound(w, msg) {
+  let pts = 0;
+  G.players.forEach((p, i) => { if (i !== w) p.hand.forEach(c => pts += cardValue(c)); });
+  scores[w] += pts;
+  G.over = true;
+  G.phase = 'over';
+  say(msg);
+  render();
+  $('endTitle').textContent = w === 0 ? 'You win the round!' : nm(w) + ' wins the round';
+  $('endText').textContent = (w === 0 ? 'You score ' : nm(w) + ' scores ') + pts + ' points from the cards left in other hands.';
+  const best = Math.max(...scores);
+  $('tally').innerHTML = NAMES.map((n, i) =>
+    '<tr' + (scores[i] === best ? ' class="win"' : '') + '><td>' + n + '</td><td>' + scores[i] + '</td></tr>').join('');
+  $('endOv').hidden = false;
+  $('nextBtn').focus();
+}
+
+/* ---------- computer players ---------- */
+function cpuChoose(p) {
+  const options = p.hand.filter(c => isPlayable(c, p.hand));
+  if (!options.length) return null;
+  const nextN = G.players[step(G.cur)].hand.length;
+  const score = c => {
+    let s = Math.random() * .5;
+    if (c.type === 'wild4') s += nextN <= 2 ? 8 : -5;
+    else if (c.type === 'wild') s += p.hand.length <= 2 ? 1 : -3;
+    else if (c.type === 'draw2' || c.type === 'skip') s += 4 + (nextN <= 2 ? 3 : 0);
+    else if (c.type === 'rev') s += 2;
+    else s += 1 + c.n / 20 + p.hand.filter(x => x.color === c.color).length * .2;
+    return s;
+  };
+  return options.reduce((a, b) => score(b) > score(a) ? b : a);
+}
+function cpuColor(p, card) {
+  const counts = COLORS.map(c => p.hand.filter(x => x !== card && x.color === c).length);
+  const max = Math.max(...counts);
+  if (max === 0) return COLORS[Math.floor(Math.random() * 4)];
+  const best = COLORS.filter((c, i) => counts[i] === max);
+  return best[Math.floor(Math.random() * best.length)];
+}
+function cpuTurn() {
+  if (!G || G.over || G.phase !== 'cpu') return;
+  const pi = G.cur, p = G.players[pi];
+  let c = cpuChoose(p);
+  if (!c) {
+    const d = drawOne(pi);
+    if (d && isPlayable(d, p.hand)) c = d;
+    else {
+      say(p.name + ' drew a card and passed.');
+      G.cur = step(pi);
+      G.phase = 'wait';
+      render();
+      schedule(startTurn, 700);
+      return;
+    }
+  }
+  applyPlay(pi, c, c.color === 'wild' ? cpuColor(p, c) : null);
+}
+
+/* ---------- your moves ---------- */
+function matchText() {
+  const t = topCard();
+  const sym = t.type === 'num' ? 'a ' + t.n : ({ skip: 'a Skip', rev: 'a Reverse', draw2: 'a Draw Two' })[t.type];
+  return COLOR_NAME[G.color] + (sym ? ' or ' + sym : '');
+}
+function onHumanCard(c) {
+  if (G.phase !== 'human') return;
+  const hand = G.players[0].hand;
+  if (G.drawn && G.drawn !== c) { say('Play the card you just drew, or pass.'); return; }
+  if (!isPlayable(c, hand)) {
+    say(c.type === 'wild4'
+      ? 'Wild Draw Four only works when you have no ' + COLOR_NAME[G.color] + ' card.'
+      : 'That card does not match. You need ' + matchText() + '.');
+    const h = $('hand'); h.classList.remove('shake'); void h.offsetWidth; h.classList.add('shake');
+    return;
+  }
+  if (c.color === 'wild') {
+    G.phase = 'color'; G.pending = c;
+    $('colorOv').hidden = false;
+    $('colorOv').querySelector('.pick').focus();
+    renderControls();
+    return;
+  }
+  G.phase = 'wait';
+  applyPlay(0, c, null);
+}
+function chooseColor(col) {
+  const c = G.pending;
+  G.pending = null;
+  $('colorOv').hidden = true;
+  G.phase = 'wait';
+  applyPlay(0, c, col);
+}
+function cancelColor() {
+  G.pending = null;
+  G.phase = 'human';
+  $('colorOv').hidden = true;
+  renderControls();
+}
+function humanDraw() {
+  if (!G || G.phase !== 'human' || G.drawn) return;
+  if (hasPlayable(0)) { say('You have a card you can play, so you cannot draw.'); return; }
+  const c = drawOne(0);
+  if (c && isPlayable(c, G.players[0].hand)) {
+    G.drawn = c;
+    say('You drew ' + describe(c) + '. Play it or pass.');
+    render();
+    return;
+  }
+  say(c ? 'You drew ' + describe(c) + ', which does not fit. Turn passes.' : 'The deck is empty. Turn passes.');
+  G.phase = 'wait';
+  G.cur = step(0);
+  render();
+  schedule(startTurn, 1200);
+}
+function humanPass() {
+  if (!G || G.phase !== 'human' || !G.drawn) return;
+  say('You passed.');
+  G.drawn = null;
+  G.phase = 'wait';
+  G.cur = step(0);
+  render();
+  schedule(startTurn, 700);
+}
+function toggleCall() {
+  if (G.phase !== 'human' || G.players[0].hand.length !== 2) return;
+  G.called = !G.called;
+  renderControls();
+}
+
+/* ---------- rendering ---------- */
+function render() {
+  renderHeader(); renderOpps(); renderTable(); renderHand(); renderControls();
+}
+function renderHeader() {
+  $('pts').textContent = 'Round ' + round + ' · You ' + scores[0] + ' pts';
+}
+function renderOpps() {
+  const box = $('opps');
+  box.innerHTML = '';
+  for (let i = 1; i < 4; i++) {
+    const p = G.players[i];
+    const d = document.createElement('div');
+    d.className = 'opp' + (G.cur === i && !G.over ? ' active' : '');
+    const n = p.hand.length;
+    d.innerHTML = '<div class="who"><span class="av" style="--c:' + AV[i] + '">' + p.name[0] + '</span><b>' + p.name + '</b>' +
+      (n === 1 ? '<span class="badge">Last card!</span>' : '') + '</div><div class="fan"></div>' +
+      '<div class="meta"><b>' + n + '</b> card' + (n === 1 ? '' : 's') + ' · ' + scores[i] + ' pts</div>';
+    const fan = d.querySelector('.fan');
+    for (let k = 0; k < Math.min(n, 9); k++) fan.appendChild(cardEl(null, 'span'));
+    box.appendChild(d);
+  }
+}
+function renderTable() {
+  const dp = $('drawPile');
+  dp.innerHTML = '';
+  const stack = document.createElement('span');
+  stack.className = 'stack';
+  stack.appendChild(cardEl(null, 'span'));
+  dp.appendChild(stack);
+  const cnt = document.createElement('span');
+  cnt.className = 'count';
+  cnt.textContent = G.draw.length;
+  dp.appendChild(cnt);
+  const mustDraw = G.phase === 'human' && !G.drawn && !hasPlayable(0);
+  dp.classList.toggle('nudge', mustDraw);
+  dp.disabled = G.phase !== 'human';
+  dp.setAttribute('aria-label', 'Draw pile, ' + G.draw.length + ' cards');
+
+  const t = topCard();
+  const disc = $('discard');
+  disc.innerHTML = '';
+  const el = cardEl(t, 'div');
+  if (t.id !== lastTopId) el.classList.add('pop');
+  lastTopId = t.id;
+  disc.appendChild(el);
+  $('ring').style.setProperty('--cur', 'var(--' + G.color + ')');
+  $('cur').style.setProperty('--cur', 'var(--' + G.color + ')');
+  $('cur').innerHTML = '<i class="dot"></i><span>Color <b>' + COLOR_NAME[G.color] + '</b> · play goes ' +
+    (G.dir > 0 ? 'left to right' : 'right to left') + '</span>';
+}
+function renderHand() {
+  const box = $('hand');
+  box.innerHTML = '';
+  const hand = G.players[0].hand;
+  const myTurn = G.phase === 'human';
+  hand.forEach(c => {
+    const el = cardEl(c);
+    const can = myTurn && (!G.drawn || G.drawn === c) && isPlayable(c, hand);
+    if (can) el.classList.add('ok');
+    else if (myTurn || G.phase === 'color') el.classList.add('dim');
+    if (G.drawn === c) el.classList.add('fresh');
+    el.addEventListener('click', () => onHumanCard(c));
+    box.appendChild(el);
+  });
+  fitHand();
+}
+function fitHand() {
+  const box = $('hand');
+  const cards = box.children;
+  const n = cards.length;
+  if (n < 2) return;
+  const cw = cards[0].offsetWidth;
+  const avail = box.clientWidth - 12;
+  const gap = Math.max(-cw * .62, Math.min(8, (avail - n * cw) / (n - 1)));
+  box.style.gap = gap + 'px';
+}
+function renderControls() {
+  const hand = G.players[0].hand;
+  const me = G.phase === 'human';
+  const call = $('callBtn');
+  call.disabled = !(me && hand.length === 2);
+  call.setAttribute('aria-pressed', String(G.called));
+  call.textContent = G.called ? 'Last card called' : 'Last card!';
+  $('passBtn').hidden = !(me && G.drawn);
+  let h = '';
+  if (G.over) h = 'Round over.';
+  else if (G.phase === 'human') {
+    if (G.drawn) h = 'Play the card you drew, or pass.';
+    else if (!hasPlayable(0)) h = 'Nothing to play. Tap the draw pile.';
+    else if (hand.length === 2) h = 'Two cards left. Press Last card! first, then play one.';
+    else h = 'Your turn. Highlighted cards can be played.';
+  } else if (G.phase === 'cpu') h = G.players[G.cur].name + ' is thinking…';
+  else if (G.phase === 'color') h = 'Choose a color for your wild card.';
+  $('hint').textContent = h;
+}
+
+/* ---------- wiring ---------- */
+$('drawPile').addEventListener('click', humanDraw);
+$('passBtn').addEventListener('click', humanPass);
+$('callBtn').addEventListener('click', toggleCall);
+$('newGame').addEventListener('click', () => { scores = [0, 0, 0, 0]; round = 0; newRound(); });
+$('nextBtn').addEventListener('click', newRound);
+$('colorCancel').addEventListener('click', cancelColor);
+document.querySelectorAll('.pick').forEach(b => b.addEventListener('click', () => chooseColor(b.dataset.color)));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('colorOv').hidden) cancelColor();
+});
+window.addEventListener('resize', () => { if (G) fitHand(); });
+newRound();
+</script>
+
+</body></html>
